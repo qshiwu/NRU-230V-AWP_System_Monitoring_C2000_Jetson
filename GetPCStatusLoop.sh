@@ -2,5 +2,5 @@
 condition=true
 while [ $condition == true ]; do
     ./GetPCStatus.sh
-    sleep 1.5
+    sleep 1
 done

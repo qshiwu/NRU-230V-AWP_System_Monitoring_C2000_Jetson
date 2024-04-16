@@ -1,3 +1,6 @@
+tegrastats.txt
 UART.o
 UARTSend
 main.o
+UARTCommand.txt
+ReadFile.o

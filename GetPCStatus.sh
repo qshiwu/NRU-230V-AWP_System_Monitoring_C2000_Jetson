@@ -85,13 +85,10 @@ CV2Temp=$(echo "$PrintCV2Temp" | awk -F'[@]' '{print $2}')
 #echo "$SOC1Temp"
 #echo "$CV2Temp"
 
-SendUART1="PC_STATUS1,$RAM,$CPU0,$CPU1,$CPU2,$CPU3,$CPU4,$CPU5,$CPU6,$CPU7\r\n"
-SendUART2="PC_STATUS2,$CV0Temp,$CV1Temp,$CV2Temp,$CPUTemp,$GPUTemp,$TboardTemp,$SOC0Temp,$SOC1Temp,$SOC2Temp,$TdiodeTemp,$tjTemp\r\n"
+SendUART1="PC_STATUS1,$RAM,$CPU0,$CPU1,$CPU2,$CPU3,$CPU4,$CPU5,$CPU6,$CPU7"
+SendUART2="PC_STATUS2,$CV0Temp,$CV1Temp,$CV2Temp,$CPUTemp,$GPUTemp,$TboardTemp,$SOC0Temp,$SOC1Temp,$SOC2Temp,$TdiodeTemp,$tjTemp"
 
-echo -ne "SendUART1: $SendUART1"
-echo -ne "SendUART2: $SendUART2"
-sudo ./UARTSend "$SendUART1"
-#sleep 0.01
-sudo ./UARTSend "$SendUART2"
+echo "$SendUART1" > UARTCommand.txt
+echo "$SendUART2" >> UARTCommand.txt
 
 
