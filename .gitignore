@@ -4,3 +4,4 @@ UARTSend
 main.o
 UARTCommand.txt
 ReadFile.o
+RunScript.o
