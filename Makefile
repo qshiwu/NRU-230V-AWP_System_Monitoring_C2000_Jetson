@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -Wall -Wextra -pthread
+CFLAGS := -Wall -Wextra -pthread -lrt
 
 SOURCES := $(wildcard *.c)
 OBJECTS := $(SOURCES:.c=.o)

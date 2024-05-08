@@ -29,8 +29,10 @@ int uart_start(int *fd) {
     tty.c_cflag |= (CLOCAL | CREAD);    
     tty.c_cflag &= ~CSIZE;
     tty.c_cflag |= CS8;                 // 8 bits per byte
-    tty.c_cflag &= ~PARENB;              // Disable parity
+    //tty.c_cflag &= ~PARENB;              // Disable parity
     tty.c_cflag &= ~CSTOPB;              // 1 stop bit
+    tty.c_cflag |= PARENB;
+    tty.c_cflag |= PARODD;
     tty.c_cflag &= ~CRTSCTS;             // Disable hardware flow control
 
     // Set non-canonical mode
