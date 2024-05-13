@@ -8,6 +8,9 @@
 
 #define MAX_BUFFER_SIZE 1024
 int Is_Simple = 0;
+int Heartbeat_Thr = 100;
+int Heartbeat_Period = 10;
+int Host_Period = 1;
 
 int read_ini_file(const char *filename, const char *key_to_find, int *value_found) {
     FILE *file = fopen(filename, "r");
@@ -133,23 +136,53 @@ void *thread_function2(void *arg) {
     char *GOOD = "GOOD";
     int fd = *((int*)arg);
 
-    printf("strcpy GOOD\n");
     strcpy(message, GOOD);
     GOODCharCnt = strlen(message) + 2;
     message[GOODCharCnt - 1] = '\n';
     message[GOODCharCnt] = '\0';
 
-    printf("Check File\n");
     while(1)
     {
 
         write(fd, message, GOODCharCnt);
-        if(Is_Simple == 0)
-            sleep_ms(1);
-        else
-            sleep_ms(5);
+        sleep_ms(Host_Period);
     }
     return NULL;
+}
+
+int chkLimit(int upLimit, int lowLimit, int value)
+{
+    if(value > upLimit)
+    {
+        value = upLimit;
+    }
+    else if(value < lowLimit)
+    {
+        value = lowLimit;
+    }
+    else
+    {
+        value = value;
+    }
+    
+    return value;
+}
+
+void send_Hearbeat_Init(int fd)
+{
+    char message[256];
+    int CharCnt = 0;
+
+    Heartbeat_Thr = chkLimit(100, 1, Heartbeat_Thr);
+    Heartbeat_Period = chkLimit(1000, 10, Heartbeat_Period);
+
+    sprintf(message, "HB_INIT_FREQ,%d,%d", Heartbeat_Thr, Heartbeat_Period);
+    CharCnt = strlen(message) + 2;
+    message[CharCnt - 1] = '\n';
+    message[CharCnt] = '\0';
+
+    write(fd, message, CharCnt);
+    sleep_ms(Host_Period);
 }
 
 int main(int argc, char **argv) 
@@ -159,12 +192,30 @@ int main(int argc, char **argv)
     int res0, res1, res2;
 
     read_ini_file("CANDataFormat.ini", "Is_Simple", &Is_Simple);
+    read_ini_file("CANDataFormat.ini", "Heartbeat_Threshold", &Heartbeat_Thr);
+    read_ini_file("CANDataFormat.ini", "Heartbeat_Period", &Heartbeat_Period);
+    read_ini_file("CANDataFormat.ini", "Host_Period", &Host_Period);
+    if(Is_Simple > 0 && Host_Period < 5)
+    {
+        Host_Period = 5;
+    }
+    if(Host_Period >= Heartbeat_Period || Host_Period == 0)
+    {
+        printf("Host_Period %d Error\n", Host_Period);
+        return -1;
+    }
+
     printf("CAN Format : %d\n", Is_Simple);
+    printf("Heartbeat Threshold : %d\n", Heartbeat_Thr);
+    printf("Heartbeat Frequency : %d\n", Heartbeat_Period);
+    printf("Host Frequency : %d\n", Host_Period);
 
     printf("uart_start\n");
     if (uart_start(&fd) != 0) {
         return 1;
     }
+
+    send_Hearbeat_Init(fd);
 
     pthread_attr_t attr;
     struct sched_param param;
