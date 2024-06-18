@@ -10,7 +10,8 @@
 int Is_Simple = 0;
 int Heartbeat_Thr = 100;
 int Heartbeat_Period = 10;
-int Host_Period = 1;
+int Host_Period = 5;
+pthread_mutex_t mutex;
 
 int read_ini_file(const char *filename, const char *key_to_find, int *value_found) {
     FILE *file = fopen(filename, "r");
@@ -76,13 +77,14 @@ void *thread_function0(void *arg) {
         printf("%s", content);
 
         strcpy(buf, content);
-        CharCnt = strlen(buf) + 2;
-        buf[CharCnt - 1] = '\n';
+        CharCnt = strlen(buf) + 1;
         buf[CharCnt] = '\0';
+        pthread_mutex_lock(&mutex); 
         write(fd, buf, CharCnt);
+        pthread_mutex_unlock(&mutex);
 
         free(content);
-        sleep(1);
+        sleep_ms(1 * 1000); //1s
     }
 
     return NULL;
@@ -111,11 +113,12 @@ void *thread_function1(void *arg) {
                 for (int i = 0; i < arrsize; i++)
                 {
                     strcpy(buf, strarr[i]);
-                    CharCnt = strlen(buf) + 2;
-                    buf[CharCnt - 1] = '\n';
+                    CharCnt = strlen(buf) + 1;
                     buf[CharCnt] = '\0';
+                    pthread_mutex_lock(&mutex); 
                     write(fd, buf, CharCnt);
-                    msleep(1);
+                    pthread_mutex_unlock(&mutex);
+                    sleep_ms(1);
                 }
             } 
         }
@@ -123,7 +126,7 @@ void *thread_function1(void *arg) {
             sleep(1);
 
         free(content);
-        sleep(1);
+        sleep_ms(1 * 1000); //1s
     }
 
     return NULL;
@@ -137,14 +140,15 @@ void *thread_function2(void *arg) {
     int fd = *((int*)arg);
 
     strcpy(message, GOOD);
-    GOODCharCnt = strlen(message) + 2;
-    message[GOODCharCnt - 1] = '\n';
+    GOODCharCnt = strlen(message) + 1;
+    printf("GOODCharCnt : %d\n",GOODCharCnt);
     message[GOODCharCnt] = '\0';
 
     while(1)
     {
-
+        pthread_mutex_lock(&mutex); 
         write(fd, message, GOODCharCnt);
+        pthread_mutex_unlock(&mutex);
         sleep_ms(Host_Period);
     }
     return NULL;
@@ -176,12 +180,13 @@ void send_Hearbeat_Init(int fd)
     Heartbeat_Thr = chkLimit(100, 1, Heartbeat_Thr);
     Heartbeat_Period = chkLimit(1000, 10, Heartbeat_Period);
 
-    sprintf(message, "HB_INIT_FREQ,%d,%d", Heartbeat_Thr, Heartbeat_Period);
-    CharCnt = strlen(message) + 2;
-    message[CharCnt - 1] = '\n';
+    sprintf(message, "HB_INIT_FREQ,%d,%d,%d", Heartbeat_Thr, Heartbeat_Period, Is_Simple);
+    CharCnt = strlen(message) + 1;
     message[CharCnt] = '\0';
 
+    pthread_mutex_lock(&mutex); 
     write(fd, message, CharCnt);
+    pthread_mutex_unlock(&mutex);
     sleep_ms(Host_Period);
 }
 
@@ -210,20 +215,14 @@ int main(int argc, char **argv)
     printf("Heartbeat Frequency : %d\n", Heartbeat_Period);
     printf("Host Frequency : %d\n", Host_Period);
 
+    pthread_mutex_init(&mutex, NULL); 
+
     printf("uart_start\n");
     if (uart_start(&fd) != 0) {
         return 1;
     }
 
     send_Hearbeat_Init(fd);
-
-    pthread_attr_t attr;
-    struct sched_param param;
-    pthread_attr_init(&attr);
-    pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
-    pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
-    param.sched_priority = sched_get_priority_max(SCHED_FIFO);
-    pthread_attr_setschedparam(&attr, &param);
 
     res2 = pthread_create(&thread2, NULL, thread_function2, &fd);
     if (res2 != 0) {
@@ -257,6 +256,7 @@ int main(int argc, char **argv)
     
     pthread_join(thread2, NULL);
     uart_stop(fd);
+    pthread_mutex_destroy(&mutex);
 
     return 0;
 }
