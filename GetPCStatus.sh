@@ -31,10 +31,10 @@ GPUTemp=$(echo "$PrintGPUTemp" | awk -F'[@]' '{print $2}')
 
 
 SendUART1="PC_STATUS1,$RAM,$CPU0,$CPU1,$CPU2,$CPU3,$CPU4,$CPU5,$CPU6,$CPU7"
-SendUART3="PC_STATUS3,$CPUTemp,$GPUTemp"
+SendUART2="PC_STATUS2,$CPUTemp,$GPUTemp"
 
 
 echo "$SendUART1"
-echo "$SendUART3"
+echo "$SendUART2"
 
 
