@@ -1,3 +1,6 @@
+#ifndef UART_H
+#define UART_H
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <termios.h>
@@ -10,3 +13,5 @@
 int uart_start(int *fd);
 int uart_reads(int fd, char *buf, int size);
 void uart_stop(int fd);
+
+#endif

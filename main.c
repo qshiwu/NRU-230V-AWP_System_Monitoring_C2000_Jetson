@@ -4,21 +4,24 @@
 
 /*---------------Thread Function Start----------------*/
 void *thread_function0(void *arg) {
-    int CharCnt = 0;
-    char buf[256];
     char *content = NULL;
     int fd = *((int*)arg);
+    UARTFormat UARTArry[20];
+    int cmdSize = 0;
+    int AnalyzResult = 0;
     while(1)
     {
         executeScript("sudo ./GetPCStatus_Simple.sh", &content, MAX_BUFFER_SIZE) ;
         printf("%s", content);
 
-        strcpy(buf, content);
-        CharCnt = strlen(buf) + 1;
-        buf[CharCnt] = '\0';
-        pthread_mutex_lock(&mutex); 
-        //write(fd, buf, CharCnt);
-        pthread_mutex_unlock(&mutex);
+        AnalyzResult = AnalyzeString(content, UARTArry, &cmdSize);
+        for(int i = 0; i < cmdSize; i++)
+        {
+            if(AnalyzResult != 0)
+                break;
+            sendPacket(fd, &UARTArry[i]);
+            sleep_ms(13);
+        }
 
         free(content);
         sleep_ms(1 * 1000); //1s
@@ -28,42 +31,39 @@ void *thread_function0(void *arg) {
 }
 
 void *thread_function1(void *arg) {
-    int CharCnt = 0;
-    char buf[256];
     char *content = NULL;
     char delimiter = '\n';
     int arrsize = 0;
     char *strarr[2];
     int fd = *((int*)arg);
     char *ptr;
+    UARTFormat UARTArry[20];
+    int cmdSize = 0;
+    int AnalyzResult = 0;
     while(1)
     {
         executeScript("sudo ./GetPCStatus.sh", &content, MAX_BUFFER_SIZE) ;
         printf("%s", content);
-
-        if(strchr(content,'%') != 0)
+        ptr = strchr(content, '\n');
+        if(ptr != NULL)
         {
-            ptr = strchr(content, '\n');
-            if(ptr != NULL)
+            splitString(content, delimiter, strarr, &arrsize);
+            for (int i = 0; i < arrsize; i++)
             {
-                splitString(content, delimiter, strarr, &arrsize);
-                for (int i = 0; i < arrsize; i++)
+                AnalyzResult = AnalyzeString(strarr[i], UARTArry, &cmdSize);
+                if(AnalyzResult != 0)
                 {
-                    strcpy(buf, strarr[i]);
-                    CharCnt = strlen(buf) + 1;
-                    buf[CharCnt] = '\0';
-                    pthread_mutex_lock(&mutex); 
-                    //write(fd, buf, CharCnt);
-                    printf("%s\n", buf);
-                    pthread_mutex_unlock(&mutex);
-                    sleep_ms(1);
+                    printf("AnalyzResult : %d\n", AnalyzResult);
+                    break;
                 }
-            } 
+                for(int i = 0; i < cmdSize; i++)
+                {
+                    sendPacket(fd, &UARTArry[i]);
+                    sleep_ms(13);
+                }
+            }
+            free(content);
         }
-        else
-            sleep(1);
-
-        free(content);
         sleep_ms(1 * 1000); //1s
     }
 
@@ -72,75 +72,76 @@ void *thread_function1(void *arg) {
 
 
 void *thread_function2(void *arg) {
-    char message[256];
-    int GOODCharCnt = 0;
-    char *GOOD = "GOOD";
+    int i = 0;
     int fd = *((int*)arg);
-
-    strcpy(message, GOOD);
-    GOODCharCnt = strlen(message) + 1;
-    printf("GOODCharCnt : %d\n",GOODCharCnt);
-    message[GOODCharCnt] = '\0';
+    UARTFormat HeartbeatUR;
+    createPacket(&HeartbeatUR, HEARTBEAT, ('G' << 24) | ('O' << 16) | ('O' << 8) | 'D');
 
     while(1)
-    {
-        pthread_mutex_lock(&mutex); 
-        //write(fd, message, GOODCharCnt);
-        printf("%s\n", message);
-        pthread_mutex_unlock(&mutex);
-        sleep_ms(Host_Period);
+    {   
+        i++;
+        sendPacket(fd, &HeartbeatUR);
+        sleep_ms(Host_Period);        
     }
     return NULL;
 }
 /*---------------Thread Function End----------------*/
 
-int TestString()
+void sendPacket(int serialPort, UARTFormat *packet)
 {
-    char *Coamd1String = "PC_STATUS1,1206,0%,0%,0%,0%,2%,0%,2%,0%";
-    char *Coamd2String = "PC_STATUS2,53.656C,-256C";
-    UARTFormat HeartbeatUR, IsSimpleUR, HeartbeatThrUR, HeartbeatPeriodUR;
-    UARTFormat UARTArry[9];
-    unsigned long HRBT= ('G' << 24) | ('O' << 16) | ('O' << 8) | 'D'; 
-    printf("0x%08X, 0x%02X, 0x%02X, 0x%02X, 0x%02X\n", HRBT, 'G', 'O', 'O', 'D');
-    
-    AnalyzeString(Coamd1String, UARTArry);
-    for(int i = 0; i < 9; i++)
+    pthread_mutex_lock(&mutex); 
+    write(serialPort, (const void *)packet, sizeof(UARTFormat));
+    pthread_mutex_unlock(&mutex);
+}
+
+void sendMultiPacket(int serialPort, UARTFormat *packet, int cnt)
+{
+    char *UARTChar;
+    int SendSize = 0;
+    int index = 0;
+    unsigned char *bytePtr;
+
+    SendSize = cnt * sizeof(UARTFormat);
+    UARTChar = malloc( SendSize);
+    for(int i = 0; i < cnt; i++)
     {
-        printf("[%d]ID : 0x%04X, DATA : 0x%08X, Checksum : 0x%04X\n", i, UARTArry[i].ID, UARTArry[i].Data, UARTArry[i].Checksum);
+        index = i * sizeof(UARTFormat);
+        bytePtr = (unsigned char *) &packet[i];
+        for(int j = 0; j < sizeof(UARTFormat); j++)
+        {
+            UARTChar[index + j] = bytePtr[j];
+        }
     }
     
-    AnalyzeString(Coamd2String, UARTArry);
-    for(int i = 0; i < 2; i++)
+    pthread_mutex_lock(&mutex); 
+    write(serialPort, UARTChar, SendSize);
+    pthread_mutex_unlock(&mutex);
+    free(UARTChar);
+}
+
+void printStructBytes(int fd, UARTFormat *packet)
+{
+    printf("ID : %d\n", packet->ID);
+    unsigned char *bytePtr = (unsigned char *)packet;
+    for (size_t i = 0; i < sizeof(UARTFormat); i++)
     {
-        printf("[%d]ID : 0x%04X, DATA : 0x%08X, Checksum : 0x%04X\n", i, UARTArry[i].ID, UARTArry[i].Data, UARTArry[i].Checksum);
+        printf("Byte %zu: 0x%02X\n", i, bytePtr[i]);
+        
     }
-
-    createPacket(&HeartbeatUR, HEARTBEAT, ('G' << 24) | ('O' << 16) | ('O' << 8) | 'D');
-    createPacket(&IsSimpleUR, IS_SIMPLE, (unsigned long)Is_Simple);
-    createPacket(&HeartbeatThrUR, HEARTBEAT_THR, (unsigned long)Heartbeat_Thr);
-    createPacket(&HeartbeatPeriodUR, HEARTBEAT_PERIOD, (unsigned long)Heartbeat_Period);
-
-    printf("ID : 0x%04X, DATA : 0x%08X, Checksum : 0x%04X\n", HeartbeatUR.ID, HeartbeatUR.Data, HeartbeatUR.Checksum);
-    printf("ID : 0x%04X, DATA : 0x%08X, Checksum : 0x%04X\n", IsSimpleUR.ID, IsSimpleUR.Data, IsSimpleUR.Checksum);
-    printf("ID : 0x%04X, DATA : 0x%08X, Checksum : 0x%04X\n", HeartbeatThrUR.ID, HeartbeatThrUR.Data, HeartbeatThrUR.Checksum);
-    printf("ID : 0x%04X, DATA : 0x%08X, Checksum : 0x%04X\n", HeartbeatPeriodUR.ID, HeartbeatPeriodUR.Data, HeartbeatPeriodUR.Checksum);
-
-
-    return 0;
+    printf("---------------------\n");
+    write(fd, packet, sizeof(UARTFormat));
 }
 
 int main(int argc, char **argv) 
 {
-    
-
     int fd;
     pthread_t thread0, thread1, thread2;
     int res0, res1, res2;
 
     read_ini_file("CANDataFormat.ini", "Is_Simple", &Is_Simple);
-    read_ini_file("CANDataFormat.ini", "Heartbeat_Threshold", &Heartbeat_Thr);
     read_ini_file("CANDataFormat.ini", "Heartbeat_Period", &Heartbeat_Period);
     read_ini_file("CANDataFormat.ini", "Host_Period", &Host_Period);
+    
     if(Is_Simple > 0 && Host_Period < 5)
     {
         Host_Period = 5;
@@ -152,18 +153,16 @@ int main(int argc, char **argv)
     }
 
     printf("CAN Format : %d\n", Is_Simple);
-    printf("Heartbeat Threshold : %d\n", Heartbeat_Thr);
     printf("Heartbeat Frequency : %d\n", Heartbeat_Period);
     printf("Host Frequency : %d\n", Host_Period);
 
-    TestString();
-/*
     pthread_mutex_init(&mutex, NULL); 
 
     printf("uart_start\n");
     if (uart_start(&fd) != 0) {
         return 1;
     }
+    sleep(1);
 
     send_Hearbeat_Init(fd);
 
@@ -197,11 +196,11 @@ int main(int argc, char **argv)
         pthread_join(thread1, NULL);
     }
   
-    //pthread_join(thread2, NULL);
-
+    pthread_join(thread2, NULL);
+    sleep(1);
     uart_stop(fd);
     pthread_mutex_destroy(&mutex);
-*/
+
     return 0;
 }
 
@@ -244,7 +243,8 @@ void msleep(int ms)
      usleep(1000 * ms);
 }
 
-void sleep_ms(unsigned long milliseconds) {
+void sleep_ms(unsigned long milliseconds) 
+{
     struct timespec ts;
     ts.tv_sec = milliseconds / 1000;
     ts.tv_nsec = (milliseconds % 1000) * 1000000;
@@ -287,19 +287,19 @@ int chkLimit(int upLimit, int lowLimit, int value)
 
 void send_Hearbeat_Init(int fd)
 {
-    char message[256];
-    int CharCnt = 0;
+    UARTFormat IsSimpleUR, HeartbeatThrUR, HeartbeatPeriodUR;
 
-    Heartbeat_Thr = chkLimit(100, 1, Heartbeat_Thr);
-    Heartbeat_Period = chkLimit(1000, 5, Heartbeat_Period);
+    Heartbeat_Period = chkLimit(1000, 11, Heartbeat_Period);
 
-    sprintf(message, "HB_INIT_FREQ,%d,%d,%d", Heartbeat_Thr, Heartbeat_Period, Is_Simple);
-    CharCnt = strlen(message) + 1;
-    message[CharCnt] = '\0';
+    createPacket(&IsSimpleUR, IS_SIMPLE, (unsigned long)Is_Simple);
+    createPacket(&HeartbeatPeriodUR, HEARTBEAT_PERIOD, (unsigned long)Heartbeat_Period);
 
-    pthread_mutex_lock(&mutex); 
-    write(fd, message, CharCnt);
-    pthread_mutex_unlock(&mutex);
+    sendPacket(fd, &IsSimpleUR);
+    sleep_ms(1);
+    sendPacket(fd, &HeartbeatThrUR);
+    sleep_ms(1);
+    sendPacket(fd, &HeartbeatPeriodUR);
+    sleep_ms(1);
     sleep_ms(Host_Period);
 }
 
@@ -329,74 +329,97 @@ void ParameterSetting(UARTFormat* Format, int num, char **Parameter, int cnt)
     unsigned long Datatmp = 0;
     float ftmp;
     char *endptr;
+    int i = 0;
     if(num == 1)
     {
-        for(int i = 0; i < (cnt - 1) ; i++)
+        for(i = 0; i < cnt ; i++)
         {
-            Datatmp = atoi(Parameter[i + 1]);
-            createPacket(&Format[i], (PC_RAM + i), Datatmp);
+            if(i == 0)
+                continue;
+            
+            char *param = Parameter[i];
+            if (param[strlen(param) - 1] == '%') {
+                param[strlen(param) - 1] = '\0';
+            }
+            Datatmp = atoi(param);
+            createPacket(&Format[i - 1], (PC_RAM + (i - 1)), Datatmp);
         }
     }
     else if (num == 2)
     {
-        for(int i = 0; i < (cnt - 1) ; i++)
+        for(i = 0; i < cnt ; i++)
         {
-            ftmp = strtof(Parameter[i + 1], &endptr);
-            Datatmp = Float2IEEE754(ftmp);
-            createPacket(&Format[i], (PC_CPU_TEMP + i), Datatmp);
+            if(i == 0)
+                continue;
+
+            char *param = Parameter[i];
+            if (param[strlen(param) - 1] == 'C') {
+                param[strlen(param) - 1] = '\0';
+            }
+            ftmp = strtof(param, &endptr);
+            if(endptr != NULL)
+            {
+                Datatmp = Float2IEEE754(ftmp);
+                createPacket(&Format[i - 1], (PC_CPU_TEMP + (i - 1)), Datatmp);
+            }
+            else
+            {
+                printf("strtof Error");
+            }
         }
     }
     
 }
 
-void AnalyzeString(char *inputString, UARTFormat* Format)
+int AnalyzeString(char *inputString, UARTFormat* Format, int *retSize)
 {
     char delimiter = ',';
     char *result[20];
     int resultSize = 0;
-    int i = 0;
+    *retSize = 0;
+    int retResult = 0;
 
     splitString(inputString, delimiter, result, &resultSize);
-    if(!strncmp(inputString, "PC_STATUS1", strlen("PC_STATUS1")))
+    if(!strncmp(result[0], "PC_STATUS1", strlen("PC_STATUS1")))
     {
-        ParameterSetting(Format, 1, result, resultSize);
-    }
-    else if(!strncmp(inputString, "PC_STATUS2", strlen("PC_STATUS2")))
-    {
-        ParameterSetting(Format, 2, result, resultSize);
-    }
-
-    for (i = 0; i < resultSize; i++) {
-        free(result[i]);
-    }
-}
-
-void TestFunction(int fd)
-{
-    char message[256];
-    int GOODCharCnt = 0;
-    char *GOOD = "GOOD";
-
-    strcpy(message, GOOD);
-    GOODCharCnt = strlen(message) + 1;
-    printf("GOODCharCnt : %d\n",GOODCharCnt);
-    message[GOODCharCnt] = '\0';
-
-    for(int i = 0; i < 0xFFFF; i++)
-    {
-
-        if((i % 600) != 0)
-        {
-            write(fd, message, GOODCharCnt);
-            sleep_ms(Host_Period);
-        }
+        if(resultSize - countCharacter(inputString, delimiter) == 1)
+            ParameterSetting(Format, 1, result, resultSize);
         else
         {
-            printf("%s, %d\n", "Loss", i);
-            write(fd, message, GOODCharCnt);
-            sleep_ms(20);
+            printf("PC_STATUS1 Error %d, resultSize : %d\n", countCharacter(inputString, delimiter), resultSize);
+            retResult = -1;
         }
+            
     }
-    printf("%s", "End\n");
+    else if(!strncmp(result[0], "PC_STATUS2", strlen("PC_STATUS2")))
+    {
+        if(resultSize - countCharacter(inputString, delimiter) == 1)
+            ParameterSetting(Format, 2, result, resultSize);
+        else
+        {
+            printf("PC_STATUS2 Error %d, resultSize : %d\n", countCharacter(inputString, delimiter), resultSize);
+            retResult = -1;
+        }
+            
+    }
+
+    for (int i = 0; i < resultSize; i++) {
+        free(result[i]);
+    }
+
+    *retSize = resultSize - 1;
+    return retResult;
+}
+
+int countCharacter(const char *str, char target)
+{
+    int count = 0;
+    while (*str) {
+        if (*str == target) {
+            count++;
+        }
+        str++;
+    }
+    return count;
 }
 /*---------------Normal Function End----------------*/

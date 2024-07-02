@@ -5,3 +5,8 @@ main.o
 UARTCommand.txt
 ReadFile.o
 RunScript.o
+GetPCStatus_command.sh
+ReadFile.d
+RunScript.d
+UART.d
+main.d
