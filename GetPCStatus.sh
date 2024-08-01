@@ -10,8 +10,11 @@ kill $(pgrep -f tegrastats)
 PrintRAM=$(cat $TXTPath | grep -o "RAM [0-9/MB]*")
 
 PrintCPU=$(cat $TXTPath | grep -o 'CPU \[[^]]*\]')
-PrintCPUTemp=$(cat $TXTPath | grep -o 'CPU@-\?[0-9]\+\.\?[0-9]*C')
-PrintGPUTemp=$(cat $TXTPath | grep -o 'GPU@-\?[0-9]\+\.\?[0-9]*C')
+PrintCPUTemp=$(cat $TXTPath | grep -o 'cpu@-\?[0-9]\+\.\?[0-9]*C')
+PrintGPUTemp=$(cat $TXTPath | grep -o 'gpu@-\?[0-9]\+\.\?[0-9]*C')
+if [ -z "$PrintGPUTemp" ]; then
+    PrintGPUTemp="gpu@0C"
+fi
 
 
 RAM=$(echo $PrintRAM | awk -F' ' '{print $2}' | awk -F'[\/]' '{print $1}')

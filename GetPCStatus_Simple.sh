@@ -8,8 +8,11 @@ tegrastats --interval 400 --logfile $TXTPath &
 sleep 0.5
 kill $(pgrep -f tegrastats)
 
-PrintCPUTemp=$(cat $TXTPath | grep -o 'CPU@-\?[0-9]\+\.\?[0-9]*C')
-PrintGPUTemp=$(cat $TXTPath | grep -o 'GPU@-\?[0-9]\+\.\?[0-9]*C')
+PrintCPUTemp=$(cat $TXTPath | grep -o 'cpu@-\?[0-9]\+\.\?[0-9]*C')
+PrintGPUTemp=$(cat $TXTPath | grep -o 'gpu@-\?[0-9]\+\.\?[0-9]*C')
+if [ -z "$PrintGPUTemp" ]; then
+    PrintGPUTemp="gpu@0C"
+fi
 
 
 CPUTemp=$(echo "$PrintCPUTemp" | awk -F'[@]' '{print $2}')
