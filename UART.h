@@ -6,7 +6,7 @@
 #include <termios.h>
 #include <string.h>
 
-#define DEVICE "/dev/ttyTHS3" // UART Path
+#define DEVICE "/dev/ttyTHS2" // UART Path
 #define BAUDRATE B921600        // Baudrate
 //#define BAUDRATE B115200        // Baudrate
 
